@@ -1,19 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import { Line } from 'react-chartjs-2';
-import { generateMockPredictions } from '../utils/mockData';
+import { fetchPredictions, processGRUData } from '../services/api';
 import './ChartConfig';
 
 function ShortTermForecast() {
   const [predictions, setPredictions] = useState([]);
   const [showComparison, setShowComparison] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [lastUpdate, setLastUpdate] = useState(null);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const data = await fetchPredictions();
+      const processedData = processGRUData(data.gru.forecast);
+      setPredictions(processedData);
+      setLastUpdate(new Date());
+      
+    } catch (err) {
+      setError('Failed to fetch predictions. Please try again.');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Generate 24-hour predictions
-    const mockData = generateMockPredictions(24);
-    setPredictions(mockData);
+    fetchData();
+    
+    const interval = setInterval(() => {
+      fetchData();
+    }, 60 * 60 * 1000);
+    
+    return () => clearInterval(interval);
   }, []);
 
-  // Chart data
   const chartData = {
     labels: predictions.map(p => p.time),
     datasets: [
@@ -26,7 +50,7 @@ function ShortTermForecast() {
         tension: 0.4
       },
       ...(showComparison ? [{
-        label: 'Actual Power (W)',
+        label: 'Simulated Actual (W)',
         data: predictions.map(p => p.actualPower),
         borderColor: 'rgb(255, 99, 132)',
         backgroundColor: 'rgba(255, 99, 132, 0.2)',
@@ -68,7 +92,6 @@ function ShortTermForecast() {
     }
   };
 
-  // Calculate statistics
   const avgPower = predictions.length > 0 
     ? Math.round(predictions.reduce((sum, p) => sum + p.predictedPower, 0) / predictions.length)
     : 0;
@@ -81,15 +104,45 @@ function ShortTermForecast() {
     ? Math.round(Math.min(...predictions.map(p => p.predictedPower)))
     : 0;
 
+  if (loading && predictions.length === 0) {
+    return (
+      <div className="short-term-forecast">
+        <h2 className="mb-4">Short-Term Forecast (GRU Model)</h2>
+        <div className="alert alert-info">
+          <div className="spinner-border spinner-border-sm me-2" role="status"></div>
+          Loading predictions from backend...
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="short-term-forecast">
-      <h2 className="mb-4">Short-Term Forecast (GRU Model)</h2>
+      <div className="d-flex justify-content-between align-items-center mb-4">
+        <h2>Short-Term Forecast (GRU Model)</h2>
+        <button 
+          className="btn btn-primary" 
+          onClick={fetchData}
+          disabled={loading}
+        >
+          {loading ? 'Refreshing...' : '🔄 Refresh'}
+        </button>
+      </div>
+
+      {error && (
+        <div className="alert alert-danger">{error}</div>
+      )}
+
+      {lastUpdate && (
+        <div className="alert alert-success">
+          <strong>Last Updated:</strong> {lastUpdate.toLocaleTimeString()}
+        </div>
+      )}
       
       <div className="alert alert-info">
         <strong>Model:</strong> Gated Recurrent Unit (GRU) - Optimized for next 24-hour predictions
       </div>
 
-      {/* Controls */}
       <div className="card forecast-controls mb-4">
         <div className="form-check form-switch">
           <input 
@@ -100,12 +153,11 @@ function ShortTermForecast() {
             onChange={(e) => setShowComparison(e.target.checked)}
           />
           <label className="form-check-label" htmlFor="comparisonToggle">
-            Show Predicted vs Actual Comparison
+            Show Predicted vs Simulated Actual Comparison
           </label>
         </div>
       </div>
 
-      {/* Main Chart */}
       <div className="card mb-4">
         <div className="card-body">
           <div className="chart-container" style={{ height: '400px' }}>
@@ -114,7 +166,6 @@ function ShortTermForecast() {
         </div>
       </div>
 
-      {/* Statistics Cards */}
       <div className="row">
         <div className="col-md-3">
           <div className="stat-card">
@@ -142,10 +193,9 @@ function ShortTermForecast() {
         </div>
       </div>
 
-      {/* Hourly Breakdown Table */}
       <div className="card mt-4">
         <div className="card-header">
-          <h5>Hourly Breakdown</h5>
+          <h5>Hourly Breakdown (First 12 Hours)</h5>
         </div>
         <div className="card-body">
           <div className="table-responsive">
@@ -154,7 +204,7 @@ function ShortTermForecast() {
                 <tr>
                   <th>Time</th>
                   <th>Predicted Power (W)</th>
-                  {showComparison && <th>Actual Power (W)</th>}
+                  {showComparison && <th>Simulated Actual (W)</th>}
                   {showComparison && <th>Error</th>}
                 </tr>
               </thead>
@@ -174,7 +224,6 @@ function ShortTermForecast() {
               </tbody>
             </table>
           </div>
-          <p className="text-muted mt-2">Showing first 12 hours. Full 24-hour data available in chart.</p>
         </div>
       </div>
     </div>

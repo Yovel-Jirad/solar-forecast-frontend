@@ -1,11 +1,17 @@
 .App {
   min-height: 100vh;
   background-color: #f8f9fa;
+  padding-bottom: 50px; /* Add padding at bottom */
 }
 
 .navbar-brand {
   font-weight: bold;
   font-size: 1.5rem;
+}
+
+.nav-link {
+  font-size: 1.1rem;
+  padding: 0.5rem 1rem !important;
 }
 
 .card {
@@ -32,15 +38,35 @@
   background: white;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  margin-bottom: 20px; /* Add margin bottom */
+  min-height: 120px; /* Ensure minimum height */
 }
 
 .stat-value {
   font-size: 2rem;
   font-weight: bold;
   color: #0d6efd;
+  margin-bottom: 10px; /* Add space */
 }
 
 .stat-label {
   color: #6c757d;
   margin-top: 5px;
+  font-size: 0.9rem;
+}
+
+.container {
+  max-width: 1200px;
+  padding-bottom: 30px; /* Add padding */
+}
+
+/* Ensure rows don't overflow */
+.row {
+  margin-left: -10px;
+  margin-right: -10px;
+}
+
+.row > * {
+  padding-left: 10px;
+  padding-right: 10px;
 }
