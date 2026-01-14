@@ -1,116 +1,30 @@
-import React, { useState, useEffect } from 'react';
-import { Line } from 'react-chartjs-2';
-import { fetchPredictions, processGRUData } from '../services/api';
-import './ChartConfig';
+import React, { useState } from 'react';
+import { usePredictions } from '../contexts/PredictionContext';
 
 function ShortTermForecast() {
-  const [predictions, setPredictions] = useState([]);
-  const [showComparison, setShowComparison] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [lastUpdate, setLastUpdate] = useState(null);
+  const { gruPredictions, loading, error, lastUpdate, refreshData } = usePredictions();
+  const [numPanels, setNumPanels] = useState(10);
+  const [hoursToShow, setHoursToShow] = useState(24); // 6, 12, or 24
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const data = await fetchPredictions();
-      const processedData = processGRUData(data.gru.forecast);
-      setPredictions(processedData);
-      setLastUpdate(new Date());
-      
-    } catch (err) {
-      setError('Failed to fetch predictions. Please try again.');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-    
-    const interval = setInterval(() => {
-      fetchData();
-    }, 60 * 60 * 1000);
-    
-    return () => clearInterval(interval);
-  }, []);
-
-  const chartData = {
-    labels: predictions.map(p => p.time),
-    datasets: [
-      {
-        label: 'Predicted Power (W)',
-        data: predictions.map(p => p.predictedPower),
-        borderColor: 'rgb(75, 192, 192)',
-        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-        fill: true,
-        tension: 0.4
-      },
-      ...(showComparison ? [{
-        label: 'Simulated Actual (W)',
-        data: predictions.map(p => p.actualPower),
-        borderColor: 'rgb(255, 99, 132)',
-        backgroundColor: 'rgba(255, 99, 132, 0.2)',
-        fill: true,
-        tension: 0.4
-      }] : [])
-    ]
-  };
-
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'top',
-      },
-      title: {
-        display: true,
-        text: 'Short-Term Solar Energy Forecast (Next 24 Hours)',
-        font: {
-          size: 16
-        }
-      }
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        title: {
-          display: true,
-          text: 'Power Output (Watts)'
-        }
-      },
-      x: {
-        title: {
-          display: true,
-          text: 'Time'
-        }
-      }
-    }
-  };
-
-  const avgPower = predictions.length > 0 
-    ? Math.round(predictions.reduce((sum, p) => sum + p.predictedPower, 0) / predictions.length)
-    : 0;
-  
-  const maxPower = predictions.length > 0
-    ? Math.round(Math.max(...predictions.map(p => p.predictedPower)))
+  // Calculate statistics
+  const totalEnergy = gruPredictions.length > 0
+    ? gruPredictions.reduce((sum, p) => sum + p.predictedPower, 0)
     : 0;
 
-  const minPower = predictions.length > 0
-    ? Math.round(Math.min(...predictions.map(p => p.predictedPower)))
-    : 0;
+  const peakHour = gruPredictions.length > 0
+    ? gruPredictions.reduce((max, p) => p.predictedPower > max.predictedPower ? p : max)
+    : { time: 'N/A', predictedPower: 0 };
 
-  if (loading && predictions.length === 0) {
+  // Filter predictions based on selected hours
+  const displayedPredictions = gruPredictions.slice(0, hoursToShow);
+
+  if (loading && gruPredictions.length === 0) {
     return (
       <div className="short-term-forecast">
         <h2 className="mb-4">Short-Term Forecast (GRU Model)</h2>
         <div className="alert alert-info">
           <div className="spinner-border spinner-border-sm me-2" role="status"></div>
-          Loading predictions from backend...
+          Loading predictions... This may take 30-60 seconds.
         </div>
       </div>
     );
@@ -118,19 +32,30 @@ function ShortTermForecast() {
 
   return (
     <div className="short-term-forecast">
+      {/* Header */}
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h2>Short-Term Forecast (GRU Model)</h2>
         <button 
           className="btn btn-primary" 
-          onClick={fetchData}
+          onClick={refreshData}
           disabled={loading}
         >
-          {loading ? 'Refreshing...' : '🔄 Refresh'}
+          {loading ? (
+            <>
+              <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+              Refreshing...
+            </>
+          ) : (
+            '🔄 Refresh Data'
+          )}
         </button>
       </div>
 
       {error && (
-        <div className="alert alert-danger">{error}</div>
+        <div className="alert alert-danger alert-dismissible fade show">
+          {error}
+          <button type="button" className="btn-close" onClick={() => {}}></button>
+        </div>
       )}
 
       {lastUpdate && (
@@ -138,91 +63,158 @@ function ShortTermForecast() {
           <strong>Last Updated:</strong> {lastUpdate.toLocaleTimeString()}
         </div>
       )}
-      
-      <div className="alert alert-info">
-        <strong>Model:</strong> Gated Recurrent Unit (GRU) - Optimized for next 24-hour predictions
-      </div>
 
-      <div className="card forecast-controls mb-4">
-        <div className="form-check form-switch">
-          <input 
-            className="form-check-input" 
-            type="checkbox" 
-            id="comparisonToggle"
-            checked={showComparison}
-            onChange={(e) => setShowComparison(e.target.checked)}
-          />
-          <label className="form-check-label" htmlFor="comparisonToggle">
-            Show Predicted vs Simulated Actual Comparison
-          </label>
-        </div>
-      </div>
-
+      {/* Controls - ABOVE TABLE */}
       <div className="card mb-4">
         <div className="card-body">
-          <div className="chart-container" style={{ height: '400px' }}>
-            <Line data={chartData} options={chartOptions} />
+          <div className="row">
+            <div className="col-md-6">
+              <label className="form-label"><strong>Number of Solar Panels:</strong></label>
+              <input 
+                type="number" 
+                className="form-control"
+                value={numPanels}
+                onChange={(e) => setNumPanels(Number(e.target.value))}
+                min="1"
+                max="100"
+              />
+            </div>
+            <div className="col-md-6">
+              <label className="form-label"><strong>Display Time Frame:</strong></label>
+              <select 
+                className="form-select"
+                value={hoursToShow}
+                onChange={(e) => setHoursToShow(Number(e.target.value))}
+              >
+                <option value={6}>Next 6 Hours</option>
+                <option value={12}>Next 12 Hours</option>
+                <option value={24}>Next 24 Hours (Full Day)</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="row">
-        <div className="col-md-3">
-          <div className="stat-card">
-            <div className="stat-value">{avgPower}W</div>
-            <div className="stat-label">Average Power</div>
-          </div>
-        </div>
-        <div className="col-md-3">
-          <div className="stat-card">
-            <div className="stat-value">{maxPower}W</div>
-            <div className="stat-label">Peak Power</div>
-          </div>
-        </div>
-        <div className="col-md-3">
-          <div className="stat-card">
-            <div className="stat-value">{minPower}W</div>
-            <div className="stat-label">Minimum Power</div>
-          </div>
-        </div>
-        <div className="col-md-3">
-          <div className="stat-card">
-            <div className="stat-value">24h</div>
-            <div className="stat-label">Forecast Horizon</div>
-          </div>
-        </div>
-      </div>
-
-      <div className="card mt-4">
-        <div className="card-header">
-          <h5>Hourly Breakdown (First 12 Hours)</h5>
+      {/* Hourly Breakdown Table */}
+      <div className="card mb-4">
+        <div className="card-header bg-primary text-white">
+          <h5 className="mb-0">📊 Hourly Power Production - Next {hoursToShow} Hours</h5>
         </div>
         <div className="card-body">
           <div className="table-responsive">
             <table className="table table-striped table-hover">
-              <thead>
+              <thead className="table-primary">
                 <tr>
+                  <th>Hour</th>
                   <th>Time</th>
-                  <th>Predicted Power (W)</th>
-                  {showComparison && <th>Simulated Actual (W)</th>}
-                  {showComparison && <th>Error</th>}
+                  <th>Power per Panel (W)</th>
+                  <th>Total Power ({numPanels} panels)</th>
                 </tr>
               </thead>
               <tbody>
-                {predictions.slice(0, 12).map((pred, idx) => (
-                  <tr key={idx}>
-                    <td>{pred.time}</td>
-                    <td>{Math.round(pred.predictedPower)}</td>
-                    {showComparison && <td>{Math.round(pred.actualPower)}</td>}
-                    {showComparison && (
-                      <td className={Math.abs(pred.predictedPower - pred.actualPower) > 50 ? 'text-danger' : 'text-success'}>
-                        {Math.round(Math.abs(pred.predictedPower - pred.actualPower))}W
-                      </td>
-                    )}
+                {displayedPredictions.map((prediction, index) => (
+                  <tr key={index}>
+                    <td><strong>Hour {index + 1}</strong></td>
+                    <td>{prediction.time}</td>
+                    <td>{Math.round(prediction.predictedPower)}W</td>
+                    <td>
+                      <strong style={{ color: '#0d6efd' }}>
+                        {Math.round(prediction.predictedPower * numPanels)}W
+                      </strong>
+                    </td>
                   </tr>
                 ))}
               </tbody>
+              <tfoot className="table-secondary">
+                <tr>
+                  <td colSpan="2"><strong>Total ({hoursToShow} hours)</strong></td>
+                  <td>
+                    <strong>
+                      {Math.round(displayedPredictions.reduce((sum, p) => sum + p.predictedPower, 0))}Wh
+                    </strong>
+                  </td>
+                  <td>
+                    <strong style={{ color: '#0d6efd' }}>
+                      {(displayedPredictions.reduce((sum, p) => sum + p.predictedPower, 0) * numPanels / 1000).toFixed(2)}kWh
+                    </strong>
+                  </td>
+                </tr>
+              </tfoot>
             </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Cards - BELOW TABLE */}
+      <div className="row mb-4">
+        <div className="col-md-4">
+          <div className="stat-card">
+            <div className="stat-value">{numPanels}</div>
+            <div className="stat-label">Solar Panels</div>
+          </div>
+        </div>
+        <div className="col-md-4">
+          <div className="stat-card">
+            <div className="stat-value">
+              {(totalEnergy * numPanels / 1000).toFixed(1)}kWh
+            </div>
+            <div className="stat-label">Total Production (24h)</div>
+          </div>
+        </div>
+        <div className="col-md-4">
+          <div className="stat-card">
+            <div className="stat-value">
+              {Math.round(peakHour.predictedPower * numPanels)}W
+            </div>
+            <div className="stat-label">Peak Hour ({peakHour.time})</div>
+          </div>
+        </div>
+      </div>
+
+      {/* GRU Model Information */}
+      <div className="card">
+        <div className="card-header bg-info text-white">
+          <h5 className="mb-0">ℹ️ About GRU Model (Gated Recurrent Unit)</h5>
+        </div>
+        <div className="card-body">
+          <p className="lead">
+            The GRU model is optimized for short-term solar energy forecasting with high accuracy and computational efficiency.
+          </p>
+          
+          <div className="row">
+            <div className="col-md-6">
+              <h6 className="text-primary">Key Features:</h6>
+              <ul>
+                <li><strong>Gating Mechanisms:</strong> Uses two gates (update and reset) for efficient memory management</li>
+                <li><strong>Fewer Parameters:</strong> Faster training and less prone to overfitting compared to LSTM</li>
+                <li><strong>Vanishing Gradient Solution:</strong> Effectively handles long-term dependencies in weather data</li>
+                <li><strong>Recursive Forecasting:</strong> Predicts one hour ahead, then uses that prediction for the next hour</li>
+              </ul>
+            </div>
+            
+            <div className="col-md-6">
+              <h6 className="text-primary">Model Specifications:</h6>
+              <ul>
+                <li><strong>Input Window:</strong> 48-72 hours of historical weather data</li>
+                <li><strong>Forecast Horizon:</strong> Next 24 hours (hourly predictions)</li>
+                <li><strong>Architecture:</strong> Two stacked GRU layers (64 and 32 units)</li>
+                <li><strong>Regularization:</strong> 20% dropout to prevent overfitting</li>
+                <li><strong>Optimizer:</strong> Adam with adaptive learning rate</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="alert alert-light mt-3">
+            <h6 className="text-success">Best Use Cases:</h6>
+            <ul className="mb-0">
+              <li><strong>Real-Time Operations:</strong> Immediate grid balancing and storage control decisions</li>
+              <li><strong>Day-Ahead Planning:</strong> Energy trading and unit commitment scheduling</li>
+              <li><strong>Grid Management:</strong> Optimal power dispatch and load forecasting</li>
+            </ul>
+          </div>
+
+          <div className="alert alert-warning mt-3">
+            <strong>⏰ Update Frequency:</strong> Predictions are automatically refreshed every hour with the latest weather data from the Israel Meteorological Service (IMS).
           </div>
         </div>
       </div>
