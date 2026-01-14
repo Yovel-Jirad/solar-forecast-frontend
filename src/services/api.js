@@ -1,0 +1,101 @@
+const API_BASE_URL = 'https://solar-forcast-backend-632074917176.us-central1.run.app';
+
+// Health check to wake up backend (handles cold start)
+export const checkBackendHealth = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/`, {
+      method: 'GET',
+    });
+    const data = await response.json();
+    return data.status === 'healthy';
+  } catch (error) {
+    console.error('Health check failed:', error);
+    return false;
+  }
+};
+
+// Fetch predictions from backend
+export const fetchPredictions = async () => {
+  try {
+    // First, wake up backend if it's sleeping (cold start handling)
+    console.log('Waking up backend...');
+    await checkBackendHealth();
+    
+    // Wait a bit for cold start
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    console.log('Fetching predictions...');
+    const response = await fetch(`${API_BASE_URL}/api/predict`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.success) {
+      throw new Error('Prediction request failed');
+    }
+
+    return data.predictions;
+  } catch (error) {
+    console.error('Error fetching predictions:', error);
+    throw error;
+  }
+};
+
+// Process GRU data for charts (24 hours)
+export const processGRUData = (gruForecast) => {
+  const now = new Date();
+  return gruForecast.map((power, index) => {
+    const time = new Date(now.getTime() + index * 60 * 60 * 1000);
+    return {
+      time: time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      predictedPower: Math.max(0, power), // No negative values
+      actualPower: Math.max(0, power + (Math.random() - 0.5) * 50) // Mock actual for comparison
+    };
+  });
+};
+
+// Process Autoformer data for charts (96 hours = 4 days)
+export const processAutoformerData = (autoformerForecast) => {
+  const predictions = [];
+  const now = new Date();
+  
+  // Group by days (24 hours each)
+  for (let day = 0; day < 4; day++) {
+    const startIdx = day * 24;
+    const endIdx = startIdx + 24;
+    const dayData = autoformerForecast.slice(startIdx, endIdx);
+    
+    const date = new Date(now);
+    date.setDate(date.getDate() + day + 1); // Start from tomorrow
+    
+    predictions.push({
+      date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      avgPower: dayData.reduce((sum, val) => sum + val, 0) / dayData.length,
+      minPower: Math.min(...dayData),
+      maxPower: Math.max(...dayData)
+    });
+  }
+  
+  return predictions;
+};
+
+// Process Autoformer hourly data for detailed view
+export const processAutoformerHourly = (autoformerForecast) => {
+  const now = new Date();
+  return autoformerForecast.map((power, index) => {
+    const time = new Date(now.getTime() + index * 60 * 60 * 1000);
+    return {
+      time: time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      date: time.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      predictedPower: Math.max(0, power)
+    };
+  });
+};
