@@ -9,7 +9,6 @@ function Dashboard() {
   const [selectedModel, setSelectedModel] = useState('gru'); // 'gru' or 'autoformer'
 
   // Choose data based on selected model
-  const currentPredictions = selectedModel === 'gru' ? gruPredictions : autoformerPredictions;
   const forecastHorizon = selectedModel === 'gru' ? '24 hours' : '4 days';
 
   // Calculate overall daily power (in Wh - watt-hours)
@@ -144,33 +143,33 @@ function Dashboard() {
         </div>
       )}
       
-      {/* Controls */}
-      <div className="card forecast-controls">
-        <div className="row">
-          <div className="col-md-6">
-            <label className="form-label">Forecast Model:</label>
-            <select 
-              className="form-select"
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
-            >
-              <option value="gru">GRU - Short Term (24 hours)</option>
-              <option value="autoformer">Autoformer - Long Term (4 days)</option>
-            </select>
-          </div>
-          <div className="col-md-6">
-            <label className="form-label">Number of Solar Panels:</label>
-            <input 
-              type="number" 
-              className="form-control"
-              value={numPanels}
-              onChange={(e) => setNumPanels(Number(e.target.value))}
-              min="1"
-              max="100"
-            />
+        {/* Controls */}
+        <div className="card forecast-controls">
+          <div className="row">
+            <div className="col-md-6">
+              <label className="form-label"><strong>Forecast Model:</strong></label>
+              <select 
+                className="form-select"
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+              >
+                <option value="gru">GRU - Short Term (24 hours)</option>
+                <option value="autoformer">Autoformer - Long Term (4 days)</option>
+              </select>
+            </div>
+            <div className="col-md-6">
+              <label className="form-label"><strong>Number of Solar Panels:</strong></label>
+              <input 
+                type="number" 
+                className="form-control"
+                value={numPanels}
+                onChange={(e) => setNumPanels(Number(e.target.value))}
+                min="1"
+                max="100"
+              />
+            </div>
           </div>
         </div>
-      </div>
 
       {/* Chart */}
       <div className="card">

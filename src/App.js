@@ -4,7 +4,6 @@ import { PredictionProvider } from './contexts/PredictionContext';
 import Dashboard from './components/Dashboard';
 import ShortTermForecast from './components/ShortTermForecast';
 import LongTermForecast from './components/LongTermForecast';
-import Analytics from './components/Analytics';
 import './App.css';
 
 function App() {
@@ -29,9 +28,6 @@ function App() {
                   <li className="nav-item">
                     <Link className="nav-link" to="/long-term">Long-Term Forecast</Link>
                   </li>
-                  <li className="nav-item">
-                    <Link className="nav-link" to="/analytics">Analytics</Link>
-                  </li>
                 </ul>
               </div>
             </div>
@@ -42,7 +38,6 @@ function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/short-term" element={<ShortTermForecast />} />
               <Route path="/long-term" element={<LongTermForecast />} />
-              <Route path="/analytics" element={<Analytics />} />
             </Routes>
           </div>
         </div>
