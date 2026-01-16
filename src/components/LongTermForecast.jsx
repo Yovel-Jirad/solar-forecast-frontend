@@ -378,19 +378,18 @@ function LongTermForecast() {
               <ul>
                 <li><strong>Autocorrelation Mechanism:</strong> Replaces standard attention to identify recurring seasonal patterns</li>
                 <li><strong>Series Decomposition:</strong> Separates trend and seasonal components for better accuracy</li>
-                <li><strong>Multi-Scale Analysis:</strong> Captures both daily and weekly weather patterns</li>
-                <li><strong>Direct Multi-Step Forecasting:</strong> Predicts all days simultaneously (no error propagation)</li>
+                <li><strong>Multi-Scale Analysis:</strong> Captures both daily and yearly weather patterns</li>
+                <li><strong>Direct Multi-Step Forecasting:</strong> Predicts all time-steps simultaneously (no error propagation)</li>
               </ul>
             </div>
             
             <div className="col-md-6">
               <h6 className="text-success">Model Specifications:</h6>
               <ul>
-                <li><strong>Input Window:</strong> 7 days (336 hours) of historical weather data</li>
+                <li><strong>Input Window:</strong> 14 days (336 hours) of historical weather data</li>
                 <li><strong>Forecast Horizon:</strong> Next 4 days (96 hours)</li>
                 <li><strong>Architecture:</strong> 4 encoder layers, 2 decoder layers</li>
                 <li><strong>Attention Heads:</strong> 8 multi-head attention mechanisms</li>
-                <li><strong>Embedding Dimension:</strong> 128-dimensional feature space</li>
               </ul>
             </div>
           </div>
@@ -411,7 +410,7 @@ function LongTermForecast() {
               <strong>Autocorrelation:</strong> The model identifies time-delay similarities by measuring correlation between current data and time-shifted versions, focusing on the strongest recurring patterns.
             </p>
             <p className="mb-0">
-              <strong>Decomposition:</strong> Separates long-term trends (gradual changes) from seasonal components (daily/weekly cycles) for more accurate multi-day predictions.
+              <strong>Decomposition:</strong> Separates long-term trends (gradual changes) from seasonal components (daily/yearly cycles) for more accurate multi-day predictions.
             </p>
           </div>
 

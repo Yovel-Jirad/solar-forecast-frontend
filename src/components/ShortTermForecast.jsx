@@ -4,7 +4,7 @@ import { usePredictions } from '../contexts/PredictionContext';
 function ShortTermForecast() {
   const { gruPredictions, loading, error, lastUpdate, refreshData } = usePredictions();
   const [numPanels, setNumPanels] = useState(1);
-  const [hoursToShow, setHoursToShow] = useState(24); // 6, 12, or 24
+  const [hoursToShow, setHoursToShow] = useState(6); // 6, 12, or 24
 
   // Calculate statistics
   const totalEnergy = gruPredictions.length > 0
@@ -188,16 +188,16 @@ function ShortTermForecast() {
                 <li><strong>Gating Mechanisms:</strong> Uses two gates (update and reset) for efficient memory management</li>
                 <li><strong>Fewer Parameters:</strong> Faster training and less prone to overfitting compared to LSTM</li>
                 <li><strong>Vanishing Gradient Solution:</strong> Effectively handles long-term dependencies in weather data</li>
-                <li><strong>Recursive Forecasting:</strong> Predicts one hour ahead, then uses that prediction for the next hour</li>
+                <li><strong>Sequential Forecasting:</strong> Predicts one hour ahead, then uses that prediction for the next hour</li>
               </ul>
             </div>
             
             <div className="col-md-6">
               <h6 className="text-primary">Model Specifications:</h6>
               <ul>
-                <li><strong>Input Window:</strong> 48-72 hours of historical weather data</li>
+                <li><strong>Input Window:</strong> 72 hours of historical weather data</li>
                 <li><strong>Forecast Horizon:</strong> Next 24 hours (hourly predictions)</li>
-                <li><strong>Architecture:</strong> Two stacked GRU layers (64 and 32 units)</li>
+                <li><strong>Architecture:</strong> Two stacked GRU layers (128 and 64 units)</li>
                 <li><strong>Regularization:</strong> 20% dropout to prevent overfitting</li>
                 <li><strong>Optimizer:</strong> Adam with adaptive learning rate</li>
               </ul>
