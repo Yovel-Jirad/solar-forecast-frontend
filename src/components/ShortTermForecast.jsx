@@ -3,7 +3,7 @@ import { usePredictions } from '../contexts/PredictionContext';
 
 function ShortTermForecast() {
   const { gruPredictions, loading, error, lastUpdate, refreshData } = usePredictions();
-  const [numPanels, setNumPanels] = useState(10);
+  const [numPanels, setNumPanels] = useState(1);
   const [hoursToShow, setHoursToShow] = useState(24); // 6, 12, or 24
 
   // Calculate statistics

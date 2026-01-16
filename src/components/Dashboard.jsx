@@ -5,7 +5,7 @@ import '../components/ChartConfig';
 
 function Dashboard() {
   const { gruPredictions, autoformerPredictions, loading, error, lastUpdate, refreshData } = usePredictions();
-  const [numPanels, setNumPanels] = useState(10);
+  const [numPanels, setNumPanels] = useState(1);
   const [selectedModel, setSelectedModel] = useState('gru'); // 'gru' or 'autoformer'
 
   // Choose data based on selected model

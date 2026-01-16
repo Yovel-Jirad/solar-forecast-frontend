@@ -13,7 +13,8 @@ export const usePredictions = () => {
 
 export const PredictionProvider = ({ children }) => {
   const [gruPredictions, setGruPredictions] = useState([]);
-  const [autoformerPredictions, setAutoformerPredictions] = useState([]);
+  const [autoformerPredictions, setAutoformerPredictions] = useState([]); // Daily summary
+  const [autoformerRawForecast, setAutoformerRawForecast] = useState([]); // Raw 96-hour array
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(null);
@@ -30,12 +31,17 @@ export const PredictionProvider = ({ children }) => {
       const processedGRU = processGRUData(data.gru.forecast);
       setGruPredictions(processedGRU);
       
-      // Process Autoformer data (96 hours = 4 days)
+      // Store RAW autoformer data (96 hours)
+      setAutoformerRawForecast(data.autoformer.forecast);
+      
+      // Process Autoformer data for daily summary (4 days)
       const processedAutoformer = processAutoformerData(data.autoformer.forecast);
       setAutoformerPredictions(processedAutoformer);
       
       setLastUpdate(new Date());
       console.log('Predictions updated successfully!');
+      console.log('Raw autoformer forecast:', data.autoformer.forecast);
+      console.log('Processed daily summary:', processedAutoformer);
       
     } catch (err) {
       setError('Failed to fetch predictions. Please try again.');
@@ -60,7 +66,8 @@ export const PredictionProvider = ({ children }) => {
 
   const value = {
     gruPredictions,
-    autoformerPredictions,
+    autoformerPredictions, // Daily summary for table
+    autoformerRawForecast, // Raw 96 hours for charts
     loading,
     error,
     lastUpdate,

@@ -12,7 +12,7 @@ export const checkBackendHealth = async () => {
     console.error('Health check failed:', error);
     return false;
   }
-};
+}; 
 
 // Fetch predictions from backend
 export const fetchPredictions = async () => {
@@ -62,7 +62,7 @@ export const processGRUData = (gruForecast) => {
   });
 };
 
-// Process Autoformer data for charts (96 hours = 4 days)
+// Process Autoformer data for daily summary (4 days)
 export const processAutoformerData = (autoformerForecast) => {
   const predictions = [];
   const now = new Date();
@@ -73,13 +73,19 @@ export const processAutoformerData = (autoformerForecast) => {
     const endIdx = startIdx + 24;
     const dayData = autoformerForecast.slice(startIdx, endIdx);
     
+    // Filter out zeros for average calculation (nighttime hours)
+    const validPowers = dayData.filter(p => p > 0);
+    const avgPower = validPowers.length > 0
+      ? validPowers.reduce((sum, val) => sum + val, 0) / validPowers.length
+      : 0;
+    
     const date = new Date(now);
     date.setDate(date.getDate() + day + 1); // Start from tomorrow
     
     predictions.push({
-      date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      avgPower: dayData.reduce((sum, val) => sum + val, 0) / dayData.length,
-      minPower: Math.min(...dayData),
+      date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      avgPower: avgPower,
+      minPower: Math.min(...dayData.filter(p => p > 0), Infinity) === Infinity ? 0 : Math.min(...dayData.filter(p => p > 0)),
       maxPower: Math.max(...dayData)
     });
   }
