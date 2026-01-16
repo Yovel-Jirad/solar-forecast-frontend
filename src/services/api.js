@@ -105,3 +105,30 @@ export const processAutoformerHourly = (autoformerForecast) => {
     };
   });
 };
+
+export const fetchAnalytics = async () => {
+  try {
+    console.log('Fetching analytics...');
+    const response = await fetch(`${API_BASE_URL}/api/analytics`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.success) {
+      throw new Error('Analytics request failed');
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error fetching analytics:', error);
+    throw error;
+  }
+};

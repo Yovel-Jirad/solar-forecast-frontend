@@ -1,10 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Pie } from 'react-chartjs-2';
 import { usePredictions } from '../contexts/PredictionContext';
+import { fetchAnalytics } from '../services/api';
 
 function ShortTermForecast() {
   const { gruPredictions, loading, error, lastUpdate, refreshData } = usePredictions();
   const [numPanels, setNumPanels] = useState(1);
-  const [hoursToShow, setHoursToShow] = useState(6); // 6, 12, or 24
+  const [hoursToShow, setHoursToShow] = useState(6);
+  const [analytics, setAnalytics] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+
+  // Fetch analytics on component mount
+  useEffect(() => {
+    const loadAnalytics = async () => {
+      try {
+        setAnalyticsLoading(true);
+        const data = await fetchAnalytics();
+        setAnalytics(data.gru);
+      } catch (err) {
+        console.error('Failed to load analytics:', err);
+      } finally {
+        setAnalyticsLoading(false);
+      }
+    };
+
+    loadAnalytics();
+  }, []);
 
   // Calculate statistics
   const totalEnergy = gruPredictions.length > 0
@@ -17,6 +38,47 @@ function ShortTermForecast() {
 
   // Filter predictions based on selected hours
   const displayedPredictions = gruPredictions.slice(0, hoursToShow);
+
+  // Prepare pie chart data for success rate
+  const pieChartData = analytics ? {
+    labels: ['Success Rate', 'Error Rate'],
+    datasets: [{
+      data: [
+        parseFloat(analytics['Success_Rate_%'].toFixed(2)),
+        parseFloat((100 - analytics['Success_Rate_%']).toFixed(2))
+      ],
+      backgroundColor: [
+        'rgba(25, 135, 84, 0.8)',
+        'rgba(220, 53, 69, 0.8)'
+      ],
+      borderColor: [
+        'rgb(25, 135, 84)',
+        'rgb(220, 53, 69)'
+      ],
+      borderWidth: 2
+    }]
+  } : null;
+
+  const pieChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+      },
+      title: {
+        display: true,
+        text: 'Model Success Rate'
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            return `${context.label}: ${context.parsed}%`;
+          }
+        }
+      }
+    }
+  };
 
   if (loading && gruPredictions.length === 0) {
     return (
@@ -97,13 +159,13 @@ function ShortTermForecast() {
 
       {/* Hourly Breakdown Table */}
       <div className="card mb-4">
-        <div className="card-header bg-primary text-white">
+        <div className="card-header bg-info text-white">
           <h5 className="mb-0">📊 Hourly Power Production - Next {hoursToShow} Hours</h5>
         </div>
         <div className="card-body">
           <div className="table-responsive">
             <table className="table table-striped table-hover">
-              <thead className="table-primary">
+              <thead className="table-info">
                 <tr>
                   <th>Hour</th>
                   <th>Time</th>
@@ -168,6 +230,54 @@ function ShortTermForecast() {
             </div>
             <div className="stat-label">Peak Hour ({peakHour.time})</div>
           </div>
+        </div>
+      </div>
+
+      {/* Analytics Section */}
+      <div className="card mb-4">
+        <div className="card-header bg-info text-white">
+          <h5 className="mb-0">📈 Model Performance Analytics</h5>
+        </div>
+        <div className="card-body">
+          {analyticsLoading ? (
+            <div className="text-center py-4">
+              <div className="spinner-border text-primary" role="status"></div>
+              <p className="mt-2">Loading analytics...</p>
+            </div>
+          ) : analytics ? (
+            <div className="row align-items-center">
+              <div className="col-md-6">
+                <div style={{ height: '300px', position: 'relative' }}>
+                  <Pie data={pieChartData} options={pieChartOptions} />
+                </div>
+              </div>
+              <div className="col-md-6">
+                <div className="text-center">
+                  <h3 className="text-primary mb-3">Model Accuracy Metrics</h3>
+                  <div className="p-4 bg-light rounded">
+                    <div className="mb-3">
+                      <h4 className="text-success mb-2">
+                        {analytics['Success_Rate_%'].toFixed(2)}%
+                      </h4>
+                      <p className="text-muted mb-0">Success Rate</p>
+                    </div>
+                    <hr />
+                    <div>
+                      <h4 className="text-info mb-2">
+                        {analytics['Conditional_MAE'].toFixed(2)}W
+                      </h4>
+                      <p className="text-muted mb-0">Conditional MAE</p>
+                      <small className="text-muted">Mean Absolute Error</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="alert alert-warning">
+              Failed to load analytics data. Please try refreshing the page.
+            </div>
+          )}
         </div>
       </div>
 
