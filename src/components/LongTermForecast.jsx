@@ -1,23 +1,94 @@
-import React, { useState } from 'react';
-import { Line } from 'react-chartjs-2';
+import React, { useState, useEffect } from 'react';
+import { Line, Pie } from 'react-chartjs-2';
 import { usePredictions } from '../contexts/PredictionContext';
+import { fetchAnalytics } from '../services/api';
 import '../components/ChartConfig';
 
 function LongTermForecast() {
-  const { autoformerPredictions, loading, error, lastUpdate, refreshData } = usePredictions();
-  const [numPanels, setNumPanels] = useState(10);
-  const [daysToShow, setDaysToShow] = useState(4); // 1, 2, 3, or 4 days (for table only)
-  const [selectedDay, setSelectedDay] = useState(1); // Day to show in chart (1-4)
+  const { 
+    autoformerPredictions,      // Daily summary (4 days)
+    autoformerRawForecast,      // Raw 96 hours
+    loading, 
+    error, 
+    lastUpdate, 
+    refreshData 
+  } = usePredictions();
+  
+  const [numPanels, setNumPanels] = useState(1);
+  const [daysToShow, setDaysToShow] = useState(4);
+  const [selectedDay, setSelectedDay] = useState(1);
+  const [analytics, setAnalytics] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
 
-  // Calculate daily energy (Wh) for each day
-  const calculateDailyEnergy = (day) => {
-    return day.avgPower * 24; // Average power × 24 hours
+  // Fetch analytics on component mount
+  useEffect(() => {
+    const loadAnalytics = async () => {
+      try {
+        setAnalyticsLoading(true);
+        const data = await fetchAnalytics();
+        setAnalytics(data.autoformer);
+      } catch (err) {
+        console.error('Failed to load analytics:', err);
+      } finally {
+        setAnalyticsLoading(false);
+      }
+    };
+
+    loadAnalytics();
+  }, []);
+
+  const processHourlyData = () => {
+    if (!autoformerRawForecast || autoformerRawForecast.length === 0) {
+      return [];
+    }
+
+    // Use lastUpdate time (when predictions were fetched)
+    const baseTime = lastUpdate || new Date();
+    const hourlyByDay = [];
+    
+    for (let day = 0; day < 4; day++) {
+      const startIdx = day * 24;
+      const endIdx = startIdx + 24;
+      const dayHours = autoformerRawForecast.slice(startIdx, endIdx);
+      
+      // Create hourly data with actual future times from last update
+      const hourlyData = dayHours.map((power, hourOffset) => {
+        const globalHourOffset = startIdx + hourOffset; 
+        const futureTime = new Date(baseTime.getTime() + (globalHourOffset + 1) * 60 * 60 * 1000);
+        
+        return {
+          time: futureTime.toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: false 
+          }),
+          fullDateTime: futureTime.toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          }),
+          predictedPower: Math.max(0, power)
+        };
+      });
+      
+      hourlyByDay.push(hourlyData);
+    }
+    
+    return hourlyByDay;
   };
 
-  // Filter predictions based on selected days (FOR TABLE ONLY)
+  const hourlyByDay = processHourlyData();
+
+  // Calculate daily energy
+  const calculateDailyEnergy = (day) => {
+    return day.avgPower * 24;
+  };
+
+  // Filter predictions based on selected days
   const displayedPredictions = autoformerPredictions.slice(0, daysToShow);
 
-  // Calculate statistics (ALWAYS USE ALL 4 DAYS for stat cards)
+  // Calculate statistics
   const totalEnergy = autoformerPredictions.length > 0
     ? autoformerPredictions.reduce((sum, day) => sum + calculateDailyEnergy(day), 0)
     : 0;
@@ -26,7 +97,7 @@ function LongTermForecast() {
     ? autoformerPredictions.reduce((max, day) => day.maxPower > max.maxPower ? day : max)
     : { date: 'N/A', maxPower: 0 };
 
-  // Calculate statistics for DISPLAYED days (for table footer)
+  // Calculate statistics for displayed days
   const displayedTotalEnergy = displayedPredictions.reduce((sum, day) => sum + calculateDailyEnergy(day), 0);
   const displayedAvgPower = displayedPredictions.length > 0
     ? displayedPredictions.reduce((sum, day) => sum + day.avgPower, 0) / displayedPredictions.length
@@ -35,39 +106,18 @@ function LongTermForecast() {
     ? Math.max(...displayedPredictions.map(day => day.maxPower))
     : 0;
 
-  // Get hourly data for selected day (for chart)
-  const [hourlyDataByDay, setHourlyDataByDay] = React.useState([]);
-  
-  React.useEffect(() => {
-    // When predictions update, process hourly data
-    if (autoformerPredictions.length > 0) {
-      // Get hourly breakdown from context (96 hours total)
-      // We need to fetch this from the raw autoformer forecast
-      // For now, we'll simulate it based on daily data
-      const simulatedHourly = autoformerPredictions.map((day, dayIndex) => {
-        // Create 24 hourly points for this day
-        const hours = [];
-        for (let hour = 0; hour < 24; hour++) {
-          // Simulate solar curve (low at night, peak at noon)
-          const timeOfDay = hour / 24;
-          const solarCurve = Math.sin(Math.PI * timeOfDay); // 0 at midnight, 1 at noon
-          const power = day.minPower + (day.maxPower - day.minPower) * Math.max(0, solarCurve);
-          
-          hours.push({
-            time: `${hour.toString().padStart(2, '0')}:00`,
-            predictedPower: power
-          });
-        }
-        return hours;
-      });
-      setHourlyDataByDay(simulatedHourly);
-    }
-  }, [autoformerPredictions]);
+  // Get hourly data for selected day
+  const selectedDayHourly = hourlyByDay[selectedDay - 1] || [];
 
-  // Get hourly data for the selected day
-  const selectedDayHourly = hourlyDataByDay[selectedDay - 1] || [];
+  // Define hour range labels
+  const hourRanges = {
+    1: "0-24 hours",
+    2: "24-48 hours",
+    3: "48-72 hours",
+    4: "72-96 hours"
+  };
 
-  // Chart data for selected day
+  // Chart data
   const chartData = {
     labels: selectedDayHourly.map(h => h.time),
     datasets: [
@@ -78,7 +128,7 @@ function LongTermForecast() {
         backgroundColor: 'rgba(25, 135, 84, 0.2)',
         fill: true,
         tension: 0.4,
-        pointRadius: 4,
+        pointRadius: 3,
         pointHoverRadius: 6
       }
     ]
@@ -93,7 +143,18 @@ function LongTermForecast() {
       },
       title: {
         display: true,
-        text: `Hourly Forecast - Day ${selectedDay} (${autoformerPredictions[selectedDay - 1]?.date || 'N/A'})`
+        text: `Hourly Forecast - ${hourRanges[selectedDay]}`
+      },
+      tooltip: {
+        callbacks: {
+          title: function(context) {
+            const index = context[0].dataIndex;
+            return selectedDayHourly[index]?.fullDateTime || context[0].label;
+          },
+          label: function(context) {
+            return `Power: ${Math.round(context.parsed.y)}W`;
+          }
+        }
       }
     },
     scales: {
@@ -107,7 +168,52 @@ function LongTermForecast() {
       x: {
         title: {
           display: true,
-          text: 'Hour of Day'
+          text: 'Time of Day'
+        },
+        ticks: {
+          maxRotation: 45,
+          minRotation: 45
+        }
+      }
+    }
+  };
+
+  // Prepare pie chart data for success rate
+  const pieChartData = analytics ? {
+    labels: ['Success Rate', 'Error Rate'],
+    datasets: [{
+      data: [
+        parseFloat(analytics['Success_Rate_%'].toFixed(2)),
+        parseFloat((100 - analytics['Success_Rate_%']).toFixed(2))
+      ],
+      backgroundColor: [
+        'rgba(25, 135, 84, 0.8)',
+        'rgba(220, 53, 69, 0.8)'
+      ],
+      borderColor: [
+        'rgb(25, 135, 84)',
+        'rgb(220, 53, 69)'
+      ],
+      borderWidth: 2
+    }]
+  } : null;
+
+  const pieChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+      },
+      title: {
+        display: true,
+        text: 'Model Success Rate'
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            return `${context.label}: ${context.parsed}%`;
+          }
         }
       }
     }
@@ -159,7 +265,7 @@ function LongTermForecast() {
         </div>
       )}
 
-      {/* Controls - ABOVE TABLE */}
+      {/* Controls */}
       <div className="card mb-4">
         <div className="card-body">
           <div className="row">
@@ -181,7 +287,7 @@ function LongTermForecast() {
                 value={daysToShow}
                 onChange={(e) => setDaysToShow(Number(e.target.value))}
               >
-                <option value={1}>Tomorrow (1 Day)</option>
+                <option value={1}>Next Day</option>
                 <option value={2}>Next 2 Days</option>
                 <option value={3}>Next 3 Days</option>
                 <option value={4}>Next 4 Days (Full Forecast)</option>
@@ -202,7 +308,6 @@ function LongTermForecast() {
               <thead className="table-success">
                 <tr>
                   <th>Day</th>
-                  <th>Date</th>
                   <th>Avg Power (W)</th>
                   <th>Max Power (W)</th>
                   <th>Power per Panel (Wh)</th>
@@ -215,7 +320,6 @@ function LongTermForecast() {
                   return (
                     <tr key={index}>
                       <td><strong>Day {index + 1}</strong></td>
-                      <td>{prediction.date}</td>
                       <td>{Math.round(prediction.avgPower)}W</td>
                       <td><strong style={{ color: '#198754' }}>{Math.round(prediction.maxPower)}W</strong></td>
                       <td>{Math.round(dailyEnergy)}Wh</td>
@@ -230,7 +334,7 @@ function LongTermForecast() {
               </tbody>
               <tfoot className="table-secondary">
                 <tr>
-                  <td colSpan="2"><strong>Total ({daysToShow} day{daysToShow > 1 ? 's' : ''})</strong></td>
+                  <td><strong>Total ({daysToShow} day{daysToShow > 1 ? 's' : ''})</strong></td>
                   <td>
                     <strong>Avg: {Math.round(displayedAvgPower)}W</strong>
                   </td>
@@ -254,7 +358,7 @@ function LongTermForecast() {
         </div>
       </div>
 
-      {/* Stats Cards - BELOW TABLE (ALWAYS SHOW ALL 4 DAYS) */}
+      {/* Stats Cards */}
       <div className="row mb-4">
         <div className="col-md-4">
           <div className="stat-card">
@@ -275,27 +379,29 @@ function LongTermForecast() {
             <div className="stat-value">
               {Math.round(peakDay.maxPower * numPanels)}W
             </div>
-            <div className="stat-label">Peak Day ({peakDay.date})</div>
+            <div className="stat-label">
+              Peak Day (Day {autoformerPredictions.indexOf(peakDay) + 1})
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Hourly Chart for Selected Day */}
+      {/* Hourly Chart */}
       <div className="card mb-4">
         <div className="card-header bg-success text-white">
           <div className="d-flex justify-content-between align-items-center">
             <h5 className="mb-0">📊 Hourly Breakdown by Day</h5>
-            <div style={{ minWidth: '200px' }}>
+            <div style={{ minWidth: '220px' }}>
               <select 
                 className="form-select form-select-sm"
                 value={selectedDay}
                 onChange={(e) => setSelectedDay(Number(e.target.value))}
                 style={{ backgroundColor: 'white' }}
               >
-                <option value={1}>Day 1 - {autoformerPredictions[0]?.date || 'Tomorrow'}</option>
-                <option value={2}>Day 2 - {autoformerPredictions[1]?.date || 'Day 2'}</option>
-                <option value={3}>Day 3 - {autoformerPredictions[2]?.date || 'Day 3'}</option>
-                <option value={4}>Day 4 - {autoformerPredictions[3]?.date || 'Day 4'}</option>
+                <option value={1}>0-24 hours ahead</option>
+                <option value={2}>24-48 hours ahead</option>
+                <option value={3}>48-72 hours ahead</option>
+                <option value={4}>72-96 hours ahead</option>
               </select>
             </div>
           </div>
@@ -304,10 +410,65 @@ function LongTermForecast() {
           <div className="chart-container" style={{ height: '400px' }}>
             <Line data={chartData} options={chartOptions} />
           </div>
+          
+          {/* Time Range Info */}
+          {selectedDayHourly.length > 0 && (
+            <div className="alert alert-info mt-3 mb-0">
+              <strong>📅 Time Range:</strong> {selectedDayHourly[0]?.fullDateTime} → {selectedDayHourly[selectedDayHourly.length - 1]?.fullDateTime}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Autoformer Model Information */}
+      {/* Analytics Section */}
+      <div className="card mb-4">
+        <div className="card-header bg-success text-white">
+          <h5 className="mb-0">📈 Model Performance Analytics</h5>
+        </div>
+        <div className="card-body">
+          {analyticsLoading ? (
+            <div className="text-center py-4">
+              <div className="spinner-border text-primary" role="status"></div>
+              <p className="mt-2">Loading analytics...</p>
+            </div>
+          ) : analytics ? (
+            <div className="row align-items-center">
+              <div className="col-md-6">
+                <div style={{ height: '300px', position: 'relative' }}>
+                  <Pie data={pieChartData} options={pieChartOptions} />
+                </div>
+              </div>
+              <div className="col-md-6">
+                <div className="text-center">
+                  <h3 className="text-success mb-3">Model Accuracy Metrics</h3>
+                  <div className="p-4 bg-light rounded">
+                    <div className="mb-3">
+                      <h4 className="text-success mb-2">
+                        {analytics['Success_Rate_%'].toFixed(2)}%
+                      </h4>
+                      <p className="text-muted mb-0">Success Rate</p>
+                    </div>
+                    <hr />
+                    <div>
+                      <h4 className="text-info mb-2">
+                        {analytics['Conditional_MAE'].toFixed(2)}W
+                      </h4>
+                      <p className="text-muted mb-0">Conditional MAE</p>
+                      <small className="text-muted">Mean Absolute Error</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="alert alert-warning">
+              Failed to load analytics data. Please try refreshing the page.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Model Info */}
       <div className="card">
         <div className="card-header bg-success text-white">
           <h5 className="mb-0">ℹ️ About Autoformer Model</h5>
@@ -323,19 +484,18 @@ function LongTermForecast() {
               <ul>
                 <li><strong>Autocorrelation Mechanism:</strong> Replaces standard attention to identify recurring seasonal patterns</li>
                 <li><strong>Series Decomposition:</strong> Separates trend and seasonal components for better accuracy</li>
-                <li><strong>Multi-Scale Analysis:</strong> Captures both daily and weekly weather patterns</li>
-                <li><strong>Direct Multi-Step Forecasting:</strong> Predicts all days simultaneously (no error propagation)</li>
+                <li><strong>Multi-Scale Analysis:</strong> Captures both daily and yearly weather patterns</li>
+                <li><strong>Direct Multi-Step Forecasting:</strong> Predicts all time-steps simultaneously (no error propagation)</li>
               </ul>
             </div>
             
             <div className="col-md-6">
               <h6 className="text-success">Model Specifications:</h6>
               <ul>
-                <li><strong>Input Window:</strong> 7 days (336 hours) of historical weather data</li>
+                <li><strong>Input Window:</strong> 14 days (336 hours) of historical weather data</li>
                 <li><strong>Forecast Horizon:</strong> Next 4 days (96 hours)</li>
                 <li><strong>Architecture:</strong> 4 encoder layers, 2 decoder layers</li>
                 <li><strong>Attention Heads:</strong> 8 multi-head attention mechanisms</li>
-                <li><strong>Embedding Dimension:</strong> 128-dimensional feature space</li>
               </ul>
             </div>
           </div>
@@ -356,7 +516,7 @@ function LongTermForecast() {
               <strong>Autocorrelation:</strong> The model identifies time-delay similarities by measuring correlation between current data and time-shifted versions, focusing on the strongest recurring patterns.
             </p>
             <p className="mb-0">
-              <strong>Decomposition:</strong> Separates long-term trends (gradual changes) from seasonal components (daily/weekly cycles) for more accurate multi-day predictions.
+              <strong>Decomposition:</strong> Separates long-term trends (gradual changes) from seasonal components (daily/yearly cycles) for more accurate multi-day predictions.
             </p>
           </div>
 

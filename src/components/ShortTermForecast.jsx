@@ -1,10 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Pie } from 'react-chartjs-2';
 import { usePredictions } from '../contexts/PredictionContext';
+import { fetchAnalytics } from '../services/api';
 
 function ShortTermForecast() {
   const { gruPredictions, loading, error, lastUpdate, refreshData } = usePredictions();
-  const [numPanels, setNumPanels] = useState(10);
-  const [hoursToShow, setHoursToShow] = useState(24); // 6, 12, or 24
+  const [numPanels, setNumPanels] = useState(1);
+  const [hoursToShow, setHoursToShow] = useState(6);
+  const [analytics, setAnalytics] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+
+  // Fetch analytics on component mount
+  useEffect(() => {
+    const loadAnalytics = async () => {
+      try {
+        setAnalyticsLoading(true);
+        const data = await fetchAnalytics();
+        setAnalytics(data.gru);
+      } catch (err) {
+        console.error('Failed to load analytics:', err);
+      } finally {
+        setAnalyticsLoading(false);
+      }
+    };
+
+    loadAnalytics();
+  }, []);
 
   // Calculate statistics
   const totalEnergy = gruPredictions.length > 0
@@ -17,6 +38,47 @@ function ShortTermForecast() {
 
   // Filter predictions based on selected hours
   const displayedPredictions = gruPredictions.slice(0, hoursToShow);
+
+  // Prepare pie chart data for success rate
+  const pieChartData = analytics ? {
+    labels: ['Success Rate', 'Error Rate'],
+    datasets: [{
+      data: [
+        parseFloat(analytics['Success_Rate_%'].toFixed(2)),
+        parseFloat((100 - analytics['Success_Rate_%']).toFixed(2))
+      ],
+      backgroundColor: [
+        'rgba(25, 135, 84, 0.8)',
+        'rgba(220, 53, 69, 0.8)'
+      ],
+      borderColor: [
+        'rgb(25, 135, 84)',
+        'rgb(220, 53, 69)'
+      ],
+      borderWidth: 2
+    }]
+  } : null;
+
+  const pieChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+      },
+      title: {
+        display: true,
+        text: 'Model Success Rate'
+      },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            return `${context.label}: ${context.parsed}%`;
+          }
+        }
+      }
+    }
+  };
 
   if (loading && gruPredictions.length === 0) {
     return (
@@ -64,7 +126,7 @@ function ShortTermForecast() {
         </div>
       )}
 
-      {/* Controls - ABOVE TABLE */}
+      {/* Controls */}
       <div className="card mb-4">
         <div className="card-body">
           <div className="row">
@@ -97,13 +159,13 @@ function ShortTermForecast() {
 
       {/* Hourly Breakdown Table */}
       <div className="card mb-4">
-        <div className="card-header bg-primary text-white">
+        <div className="card-header bg-info text-white">
           <h5 className="mb-0">📊 Hourly Power Production - Next {hoursToShow} Hours</h5>
         </div>
         <div className="card-body">
           <div className="table-responsive">
             <table className="table table-striped table-hover">
-              <thead className="table-primary">
+              <thead className="table-info">
                 <tr>
                   <th>Hour</th>
                   <th>Time</th>
@@ -145,7 +207,7 @@ function ShortTermForecast() {
         </div>
       </div>
 
-      {/* Stats Cards - BELOW TABLE */}
+      {/* Stats Cards */}
       <div className="row mb-4">
         <div className="col-md-4">
           <div className="stat-card">
@@ -171,6 +233,54 @@ function ShortTermForecast() {
         </div>
       </div>
 
+      {/* Analytics Section */}
+      <div className="card mb-4">
+        <div className="card-header bg-info text-white">
+          <h5 className="mb-0">📈 Model Performance Analytics</h5>
+        </div>
+        <div className="card-body">
+          {analyticsLoading ? (
+            <div className="text-center py-4">
+              <div className="spinner-border text-primary" role="status"></div>
+              <p className="mt-2">Loading analytics...</p>
+            </div>
+          ) : analytics ? (
+            <div className="row align-items-center">
+              <div className="col-md-6">
+                <div style={{ height: '300px', position: 'relative' }}>
+                  <Pie data={pieChartData} options={pieChartOptions} />
+                </div>
+              </div>
+              <div className="col-md-6">
+                <div className="text-center">
+                  <h3 className="text-primary mb-3">Model Accuracy Metrics</h3>
+                  <div className="p-4 bg-light rounded">
+                    <div className="mb-3">
+                      <h4 className="text-success mb-2">
+                        {analytics['Success_Rate_%'].toFixed(2)}%
+                      </h4>
+                      <p className="text-muted mb-0">Success Rate</p>
+                    </div>
+                    <hr />
+                    <div>
+                      <h4 className="text-info mb-2">
+                        {analytics['Conditional_MAE'].toFixed(2)}W
+                      </h4>
+                      <p className="text-muted mb-0">Conditional MAE</p>
+                      <small className="text-muted">Mean Absolute Error</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="alert alert-warning">
+              Failed to load analytics data. Please try refreshing the page.
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* GRU Model Information */}
       <div className="card">
         <div className="card-header bg-info text-white">
@@ -188,16 +298,16 @@ function ShortTermForecast() {
                 <li><strong>Gating Mechanisms:</strong> Uses two gates (update and reset) for efficient memory management</li>
                 <li><strong>Fewer Parameters:</strong> Faster training and less prone to overfitting compared to LSTM</li>
                 <li><strong>Vanishing Gradient Solution:</strong> Effectively handles long-term dependencies in weather data</li>
-                <li><strong>Recursive Forecasting:</strong> Predicts one hour ahead, then uses that prediction for the next hour</li>
+                <li><strong>Sequential Forecasting:</strong> Predicts one hour ahead, then uses that prediction for the next hour</li>
               </ul>
             </div>
             
             <div className="col-md-6">
               <h6 className="text-primary">Model Specifications:</h6>
               <ul>
-                <li><strong>Input Window:</strong> 48-72 hours of historical weather data</li>
+                <li><strong>Input Window:</strong> 72 hours of historical weather data</li>
                 <li><strong>Forecast Horizon:</strong> Next 24 hours (hourly predictions)</li>
-                <li><strong>Architecture:</strong> Two stacked GRU layers (64 and 32 units)</li>
+                <li><strong>Architecture:</strong> Two stacked GRU layers (128 and 64 units)</li>
                 <li><strong>Regularization:</strong> 20% dropout to prevent overfitting</li>
                 <li><strong>Optimizer:</strong> Adam with adaptive learning rate</li>
               </ul>
