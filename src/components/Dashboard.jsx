@@ -11,17 +11,15 @@ function Dashboard() {
   // Choose data based on selected model
   const forecastHorizon = selectedModel === 'gru' ? '24 hours' : '4 days';
 
-  // Calculate overall daily power (in Wh - watt-hours)
-  // Assuming each prediction represents hourly average, so 24 hours per day
+  // Calculate overall daily power
   const calculateDailyEnergy = (day) => {
-    // Daily energy = average power * 24 hours
     return day.avgPower * 24;
   };
 
-  // Calculate total energy for GRU (sum of all 24 hours)
+  // Calculate total energy for GRU
   let gruTotalEnergy = 0;
   if (selectedModel === 'gru' && gruPredictions.length > 0) {
-    // Sum all hourly predictions to get total daily energy (Wh)
+    // Sum all hourly predictions to get total daily energy
     gruTotalEnergy = gruPredictions.reduce((sum, p) => sum + p.predictedPower, 0);
   }
 
@@ -40,8 +38,8 @@ function Dashboard() {
       }
     ]
   } : {
-    // Autoformer: Only Daily Energy in blue
-    labels: autoformerPredictions.map(p => p.date),
+    // Autoformer: Only Daily Energy
+    labels: ['0-24 hours', '24-48 hours', '48-72 hours', '72-96 hours'],
     datasets: [
       {
         label: 'Daily Energy Production (Wh)',
@@ -84,11 +82,10 @@ function Dashboard() {
     }
   };
 
-  // Calculate statistics based on selected model
   let totalEnergyProduction = 0;
 
   if (selectedModel === 'autoformer' && autoformerPredictions.length > 0) {
-    // Total energy production across all 4 days (in Wh)
+    // Total energy production across all 4 days
     totalEnergyProduction = autoformerPredictions.reduce(
       (sum, day) => sum + calculateDailyEnergy(day),
       0
@@ -184,7 +181,7 @@ function Dashboard() {
         </div>
       </div>
 
-      {/* Stats Summary - Both models now have 3 cards */}
+      {/* Stats Summary */}
       <div className="row mt-4">
         <div className="col-md-4 col-sm-6">
           <div className="stat-card">

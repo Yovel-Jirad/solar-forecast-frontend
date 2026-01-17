@@ -126,7 +126,7 @@ function ShortTermForecast() {
         </div>
       )}
 
-      {/* Controls - ABOVE TABLE */}
+      {/* Controls */}
       <div className="card mb-4">
         <div className="card-body">
           <div className="row">
@@ -207,7 +207,7 @@ function ShortTermForecast() {
         </div>
       </div>
 
-      {/* Stats Cards - BELOW TABLE */}
+      {/* Stats Cards */}
       <div className="row mb-4">
         <div className="col-md-4">
           <div className="stat-card">

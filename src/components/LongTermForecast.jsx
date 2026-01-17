@@ -37,15 +37,12 @@ function LongTermForecast() {
     loadAnalytics();
   }, []);
 
-  // ========================================
-  // PROCESS RAW 96-HOUR DATA FOR CHARTS
-  // ========================================
   const processHourlyData = () => {
     if (!autoformerRawForecast || autoformerRawForecast.length === 0) {
       return [];
     }
 
-    // Use lastUpdate time (when predictions were fetched) instead of current time
+    // Use lastUpdate time (when predictions were fetched)
     const baseTime = lastUpdate || new Date();
     const hourlyByDay = [];
     
@@ -54,16 +51,16 @@ function LongTermForecast() {
       const endIdx = startIdx + 24;
       const dayHours = autoformerRawForecast.slice(startIdx, endIdx);
       
-      // Create hourly data with ACTUAL FUTURE TIMES FROM LAST UPDATE
+      // Create hourly data with actual future times from last update
       const hourlyData = dayHours.map((power, hourOffset) => {
-        const globalHourOffset = startIdx + hourOffset; // 0-95 hours from lastUpdate
+        const globalHourOffset = startIdx + hourOffset; 
         const futureTime = new Date(baseTime.getTime() + (globalHourOffset + 1) * 60 * 60 * 1000);
         
         return {
           time: futureTime.toLocaleTimeString('en-US', { 
             hour: '2-digit', 
             minute: '2-digit',
-            hour12: false // 24-hour format
+            hour12: false 
           }),
           fullDateTime: futureTime.toLocaleString('en-US', {
             month: 'short',
@@ -83,15 +80,15 @@ function LongTermForecast() {
 
   const hourlyByDay = processHourlyData();
 
-  // Calculate daily energy (Wh)
+  // Calculate daily energy
   const calculateDailyEnergy = (day) => {
     return day.avgPower * 24;
   };
 
-  // Filter predictions based on selected days (FOR TABLE ONLY)
+  // Filter predictions based on selected days
   const displayedPredictions = autoformerPredictions.slice(0, daysToShow);
 
-  // Calculate statistics (ALWAYS USE ALL 4 DAYS)
+  // Calculate statistics
   const totalEnergy = autoformerPredictions.length > 0
     ? autoformerPredictions.reduce((sum, day) => sum + calculateDailyEnergy(day), 0)
     : 0;
@@ -100,7 +97,7 @@ function LongTermForecast() {
     ? autoformerPredictions.reduce((max, day) => day.maxPower > max.maxPower ? day : max)
     : { date: 'N/A', maxPower: 0 };
 
-  // Calculate statistics for DISPLAYED days
+  // Calculate statistics for displayed days
   const displayedTotalEnergy = displayedPredictions.reduce((sum, day) => sum + calculateDailyEnergy(day), 0);
   const displayedAvgPower = displayedPredictions.length > 0
     ? displayedPredictions.reduce((sum, day) => sum + day.avgPower, 0) / displayedPredictions.length

@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
 import { fetchPredictions, processGRUData, processAutoformerData } from '../services/api';
 
 const PredictionContext = createContext();
@@ -11,15 +11,70 @@ export const usePredictions = () => {
   return context;
 };
 
+const CACHE_KEYS = {
+  GRU: 'solar_gru_predictions',
+  AUTOFORMER: 'solar_autoformer_predictions',
+  AUTOFORMER_RAW: 'solar_autoformer_raw',
+  LAST_UPDATE: 'solar_last_update'
+};
+
+const CACHE_DURATION = 60 * 60 * 1000;
+
 export const PredictionProvider = ({ children }) => {
   const [gruPredictions, setGruPredictions] = useState([]);
-  const [autoformerPredictions, setAutoformerPredictions] = useState([]); // Daily summary
-  const [autoformerRawForecast, setAutoformerRawForecast] = useState([]); // Raw 96-hour array
+  const [autoformerPredictions, setAutoformerPredictions] = useState([]);
+  const [autoformerRawForecast, setAutoformerRawForecast] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdate, setLastUpdate] = useState(null);
 
-  const fetchData = async () => {
+  const loadFromCache = useCallback(() => {
+    try {
+      const cachedLastUpdate = localStorage.getItem(CACHE_KEYS.LAST_UPDATE);
+      
+      if (!cachedLastUpdate) {
+        return false;
+      }
+
+      const lastUpdateTime = new Date(cachedLastUpdate);
+      const now = new Date();
+      
+      // Check if cache is still valid (less than 1 hour old)
+      if (now - lastUpdateTime < CACHE_DURATION) {
+        const cachedGRU = JSON.parse(localStorage.getItem(CACHE_KEYS.GRU));
+        const cachedAutoformer = JSON.parse(localStorage.getItem(CACHE_KEYS.AUTOFORMER));
+        const cachedAutoformerRaw = JSON.parse(localStorage.getItem(CACHE_KEYS.AUTOFORMER_RAW));
+
+        if (cachedGRU && cachedAutoformer && cachedAutoformerRaw) {
+          setGruPredictions(cachedGRU);
+          setAutoformerPredictions(cachedAutoformer);
+          setAutoformerRawForecast(cachedAutoformerRaw);
+          setLastUpdate(lastUpdateTime);
+          console.log('Loaded predictions from cache');
+          return true;
+        }
+      } else {
+        console.log('Cache expired, fetching fresh data');
+      }
+    } catch (err) {
+      console.error('Error loading from cache:', err);
+    }
+    return false;
+  }, []);
+
+  const saveToCache = useCallback((gru, autoformer, autoformerRaw, updateTime) => {
+    try {
+      localStorage.setItem(CACHE_KEYS.GRU, JSON.stringify(gru));
+      localStorage.setItem(CACHE_KEYS.AUTOFORMER, JSON.stringify(autoformer));
+      localStorage.setItem(CACHE_KEYS.AUTOFORMER_RAW, JSON.stringify(autoformerRaw));
+      localStorage.setItem(CACHE_KEYS.LAST_UPDATE, updateTime.toISOString());
+      console.log('Saved predictions to cache');
+    } catch (err) {
+      console.error('Error saving to cache:', err);
+    }
+  }, []);
+
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -38,7 +93,11 @@ export const PredictionProvider = ({ children }) => {
       const processedAutoformer = processAutoformerData(data.autoformer.forecast);
       setAutoformerPredictions(processedAutoformer);
       
-      setLastUpdate(new Date());
+      const updateTime = new Date();
+      setLastUpdate(updateTime);
+      
+      saveToCache(processedGRU, processedAutoformer, data.autoformer.forecast, updateTime);
+      
       console.log('Predictions updated successfully!');
       console.log('Raw autoformer forecast:', data.autoformer.forecast);
       console.log('Processed daily summary:', processedAutoformer);
@@ -49,25 +108,32 @@ export const PredictionProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [saveToCache]);
 
   useEffect(() => {
-    // Initial fetch on app load
-    fetchData();
+    // Try to load from cache first
+    const cacheLoaded = loadFromCache();
+    
+    if (cacheLoaded) {
+      setLoading(false);
+    } else {
+      // No valid cache, fetch fresh data
+      fetchData();
+    }
     
     // Auto-refresh every hour
     const interval = setInterval(() => {
       console.log('Auto-refreshing predictions (hourly)...');
       fetchData();
-    }, 60 * 60 * 1000); // 1 hour
+    }, 60 * 60 * 1000); 
     
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchData, loadFromCache]);
 
   const value = {
     gruPredictions,
-    autoformerPredictions, // Daily summary for table
-    autoformerRawForecast, // Raw 96 hours for charts
+    autoformerPredictions,
+    autoformerRawForecast,
     loading,
     error,
     lastUpdate,

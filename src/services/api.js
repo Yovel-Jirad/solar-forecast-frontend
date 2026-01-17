@@ -1,6 +1,6 @@
 const API_BASE_URL = 'https://solar-forcast-backend-632074917176.us-central1.run.app';
 
-// Health check to wake up backend (handles cold start)
+// Health check to wake up backend 
 export const checkBackendHealth = async () => {
   try {
     const response = await fetch(`${API_BASE_URL}/`, {
@@ -17,12 +17,9 @@ export const checkBackendHealth = async () => {
 // Fetch predictions from backend
 export const fetchPredictions = async () => {
   try {
-    // First, wake up backend if it's sleeping (cold start handling)
+    // First, wake up backend if it's sleeping
     console.log('Waking up backend...');
     await checkBackendHealth();
-    
-    // Wait a bit for cold start
-    await new Promise(resolve => setTimeout(resolve, 2000));
     
     console.log('Fetching predictions...');
     const response = await fetch(`${API_BASE_URL}/api/predict`, {
@@ -55,7 +52,7 @@ export const processGRUData = (gruForecast) => {
   return gruForecast.map((power, index) => {
     const time = new Date(now.getTime() + index * 60 * 60 * 1000);
     return {
-      time: time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      time: time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
       predictedPower: Math.max(0, power), // No negative values
       actualPower: Math.max(0, power + (Math.random() - 0.5) * 50) // Mock actual for comparison
     };
@@ -99,7 +96,7 @@ export const processAutoformerHourly = (autoformerForecast) => {
   return autoformerForecast.map((power, index) => {
     const time = new Date(now.getTime() + index * 60 * 60 * 1000);
     return {
-      time: time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      time: time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
       date: time.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       predictedPower: Math.max(0, power)
     };
